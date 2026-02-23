@@ -1,0 +1,214 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Device is already configured",
+            "not_supported": "Device is not supported"
+        },
+        "error": {
+            "cannot_connect": "Failed to connect to the Chandler Systems device",
+            "invalid_auth": "Invalid authentication key",
+            "unknown": "Unexpected error occurred"
+        },
+        "progress": {
+            "identify_device": "Connecting to your device to retrieve its information..."
+        },
+        "step": {
+            "bluetooth_confirm": {
+                "data": {
+                    "address": "Device",
+                    "auth_key": "API key"
+                },
+                "data_description": {
+                    "address": "Bluetooth address of the device.",
+                    "auth_key": "API key can be found in the Legacy View App under Advanced Settings."
+                },
+                "description": "Do you want to add the {model}?",
+                "title": "{name} found"
+            },
+            "user": {
+                "data": {
+                    "address": "Device",
+                    "auth_key": "API key"
+                },
+                "data_description": {
+                    "address": "Bluetooth address of the device.",
+                    "auth_key": "API key can be enabled and found in the Legacy View App under Advanced Settings."
+                },
+                "description": "Enter the API key for your Chandler Systems device.",
+                "title": "Authentication"
+            }
+        }
+    },
+    "entity": {
+        "binary_sensor": {
+            "auto_reserve_mode": {
+                "name": "Auto reserve mode"
+            },
+            "display_off": {
+                "name": "Display off"
+            },
+            "prefill_enabled": {
+                "name": "Prefill enabled"
+            },
+            "regen_active": {
+                "name": "Regeneration active"
+            },
+            "regen_in_aeration": {
+                "name": "Regeneration in aeration"
+            },
+            "regen_motor_in_progress": {
+                "name": "Regeneration motor in progress"
+            },
+            "regen_soak_mode": {
+                "name": "Regeneration soak mode"
+            }
+        },
+        "sensor": {
+            "aeration_days": {
+                "name": "Aeration days"
+            },
+            "avg_water_used": {
+                "name": "Average water used"
+            },
+            "battery_level": {
+                "name": "Battery level"
+            },
+            "chlorine_pulses": {
+                "name": "Chlorine pulses"
+            },
+            "current_day_override": {
+                "name": "Current day override"
+            },
+            "day_override": {
+                "name": "Day override"
+            },
+            "days_in_operation": {
+                "name": "Days in operation"
+            },
+            "days_since_regen": {
+                "name": "Days since regeneration"
+            },
+            "days_until_regen": {
+                "name": "Days until regeneration"
+            },
+            "firmware_version": {
+                "name": "Firmware version"
+            },
+            "gallons_since_regen": {
+                "name": "Gallons since regeneration"
+            },
+            "num_regen_positions": {
+                "name": "Regeneration positions"
+            },
+            "peak_flow_daily": {
+                "name": "Peak flow daily"
+            },
+            "prefill_duration": {
+                "name": "Prefill duration"
+            },
+            "present_flow": {
+                "name": "Present flow"
+            },
+            "regen_counter": {
+                "name": "Regeneration counter (all time)"
+            },
+            "regen_counter_resettable": {
+                "name": "Regeneration counter"
+            },
+            "regen_current_position": {
+                "name": "Regeneration current position"
+            },
+            "regen_day_override": {
+                "name": "Regeneration day override"
+            },
+            "regen_soak_timer": {
+                "name": "Regeneration soak timer"
+            },
+            "regen_state": {
+                "name": "Regeneration state",
+                "state": {
+                    "creeping_to_position": "Creeping to position",
+                    "idle": "Idle",
+                    "in_bypass": "In bypass",
+                    "moving_to_brine_soak": "Moving to brine soak",
+                    "moving_to_bypass": "Moving to bypass",
+                    "moving_to_creep_position": "Moving to creep position",
+                    "moving_to_final_position": "Moving to final position",
+                    "moving_to_next_position": "Moving to next position",
+                    "moving_to_service": "Moving to service",
+                    "twedo_waiting_for_motor": "TWEDO waiting for motor",
+                    "waiting_for_twedo": "Waiting for TWEDO",
+                    "waiting_in_brine_soak": "Waiting in brine soak",
+                    "waiting_in_position": "Waiting in position"
+                }
+            },
+            "regen_time_hours": {
+                "name": "Regeneration time"
+            },
+            "regen_time_remaining": {
+                "name": "Regeneration time remaining"
+            },
+            "regen_time_type": {
+                "name": "Regeneration time type"
+            },
+            "reserve_capacity": {
+                "name": "Reserve capacity"
+            },
+            "reserve_capacity_gallons": {
+                "name": "Reserve capacity gallons"
+            },
+            "salt_tank_capacity": {
+                "name": "Salt tank capacity"
+            },
+            "salt_tank_remaining": {
+                "name": "Salt remaining"
+            },
+            "serial_a": {
+                "name": "Serial number A"
+            },
+            "serial_b": {
+                "name": "Serial number B"
+            },
+            "total_gallons": {
+                "name": "Total gallons (all time)"
+            },
+            "total_gallons_remaining": {
+                "name": "Total gallons remaining"
+            },
+            "total_gallons_resettable": {
+                "name": "Total gallons"
+            },
+            "total_grains_capacity": {
+                "name": "Total grains capacity"
+            },
+            "valve_error": {
+                "name": "Valve error",
+                "state": {
+                    "cannot_find_home": "Cannot find home",
+                    "lost_home": "Lost home",
+                    "no_encoder_high_current": "No encoder slots, high motor current",
+                    "no_encoder_no_current": "No encoder slots, no motor current",
+                    "no_encoder_normal_current": "No encoder slots, normal motor current",
+                    "no_error": "No error",
+                    "regen_aborted_on_battery": "Regeneration aborted (on battery)",
+                    "twedo_motor_timeout": "TWEDO motor timeout"
+                }
+            },
+            "valve_series": {
+                "name": "Valve series"
+            },
+            "valve_status": {
+                "name": "Valve status"
+            },
+            "valve_type": {
+                "name": "Valve type"
+            },
+            "water_hardness": {
+                "name": "Water hardness"
+            },
+            "water_used_today": {
+                "name": "Water used today"
+            }
+        }
+    }
+}
