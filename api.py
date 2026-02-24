@@ -18,7 +18,7 @@ from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak.backends.device import BLEDevice
 from bleak_retry_connector import BleakClientWithServiceCache, establish_connection
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 
 from .const import (
@@ -75,6 +75,7 @@ class ChandlerSystemsAPI:
         self._ack_event = asyncio.Event()
         self._nack_event = asyncio.Event()
         self._write_lock = asyncio.Lock()
+        self.disconnect_event: asyncio.Event = asyncio.Event()
 
     async def connect(self, ble_device: BLEDevice) -> bool:
         """Connect to the Chandler Systems device."""
@@ -83,6 +84,7 @@ class ChandlerSystemsAPI:
                 BleakClientWithServiceCache,
                 ble_device,
                 ble_device.name or ble_device.address,
+                disconnected_callback=self._on_ble_disconnect,
             )
             self._connected = True
 
@@ -128,7 +130,13 @@ class ChandlerSystemsAPI:
             async with self._write_lock:
                 _LOGGER.debug("Sending graceful disconnect command to device")
                 # Send reset command to prompt device to disconnect
-                await self._write_gatt(bytes(ord("R")), lock=False)
+                try:
+                    await self._write_gatt(b"R", lock=False)
+                except ChandlerSystemsConnectionError:
+                    # Connection already dropped; skip the reset and proceed to cleanup.
+                    _LOGGER.debug(
+                        "Device already disconnected, skipping reset command"
+                    )
                 self._connected = False
                 # Short delay to allow it to process the disconnect
                 await asyncio.sleep(0.1)
@@ -487,13 +495,20 @@ class ChandlerSystemsAPI:
         if not self.client or not self._write_char or not self._connected:
             raise ChandlerSystemsConnectionError("Not connected to device")
 
-        if lock:
-            async with self._write_lock:
+        try:
+            if lock:
+                async with self._write_lock:
+                    await self.client.write_gatt_char(
+                        self._write_char, data, response=False
+                    )
+            else:
                 await self.client.write_gatt_char(
                     self._write_char, data, response=False
                 )
-        else:
-            await self.client.write_gatt_char(self._write_char, data, response=False)
+        except BleakError as err:
+            raise ChandlerSystemsConnectionError(
+                f"Write failed, device may have disconnected: {err}"
+            ) from err
 
     async def _send_status_packet(self, status: int) -> None:
         """Send a single-byte status packet, suppressing errors."""
@@ -506,6 +521,21 @@ class ChandlerSystemsAPI:
         except (ChandlerSystemsConnectionError, BleakError) as err:
             _LOGGER.error("Failed to send status packet 0x%02X: %s", status, err)
             raise
+
+    @callback
+    def _on_ble_disconnect(self, _client: BleakClientWithServiceCache) -> None:
+        """Handle a BLE disconnection (expected or unexpected).
+
+        Called by Bleak on the event loop when the connection drops from
+        either side. Sets disconnect_event to unblock the coordinator's wait
+        loop immediately rather than waiting for the idle timeout.
+        """
+        if not self._connected:
+            # Already marked disconnected (e.g. our own disconnect() ran first).
+            return
+        _LOGGER.debug("BLE connection to %s dropped", self.address)
+        self._connected = False
+        self.disconnect_event.set()
 
     def _clear_ack_nack(self) -> None:
         """Clear ACK and NAK events."""

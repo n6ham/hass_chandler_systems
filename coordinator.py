@@ -140,17 +140,35 @@ class ChandlerSystemsCoordinator(ActiveBluetoothDataUpdateCoordinator[dict[str, 
         try:
             # Stay connected while data keeps arriving.
             # Disconnect after IDLE_DISCONNECT_TIMEOUT seconds of silence,
-            # or after MAX_CONNECTION_TIMEOUT seconds total (safety cap).
+            # or after MAX_CONNECTION_TIMEOUT seconds total (safety cap),
+            # or immediately if the BLE connection drops.
             async with asyncio.timeout(MAX_CONNECTION_TIMEOUT):
                 while True:
                     self._data_received_event.clear()
-                    try:
-                        await asyncio.wait_for(
-                            self._data_received_event.wait(),
-                            timeout=IDLE_DISCONNECT_TIMEOUT,
+                    data_task = self.hass.async_create_task(
+                        self._data_received_event.wait(), eager_start=True
+                    )
+                    disconnect_task = self.hass.async_create_task(
+                        api.disconnect_event.wait(), eager_start=True
+                    )
+                    done, pending = await asyncio.wait(
+                        {data_task, disconnect_task},
+                        timeout=IDLE_DISCONNECT_TIMEOUT,
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    for task in pending:
+                        task.cancel()
+
+                    if disconnect_task in done:
+                        _LOGGER.debug(
+                            "BLE connection to %s dropped, exiting wait loop",
+                            self.address,
                         )
-                    except TimeoutError:
                         break
+                    if not done:
+                        # Idle timeout — no data and no disconnect signal.
+                        break
+                    # data_task completed — loop and wait for more data.
         except TimeoutError:
             _LOGGER.debug(
                 "Max connection time reached for %s, disconnecting",
@@ -179,6 +197,17 @@ class ChandlerSystemsCoordinator(ActiveBluetoothDataUpdateCoordinator[dict[str, 
     def _set_device_info(self, data: dict[str, Any]) -> None:
         self.device_info = format_device_info(data)
 
+    async def _async_sync_time(
+        self, api: ChandlerSystemsAPI, payload: dict[str, Any]
+    ) -> None:
+        """Send a time-sync command, ignoring connection errors."""
+        try:
+            await api.send_command(payload)
+        except ChandlerSystemsConnectionError:
+            _LOGGER.debug(
+                "Time sync skipped for %s, device not connected", self.address
+            )
+
     def _sync_time(self, data: dict[str, Any]) -> None:
         """Sync the device clock if it differs from local time."""
         if "dh" not in data or "dm" not in data:
@@ -204,9 +233,12 @@ class ChandlerSystemsCoordinator(ActiveBluetoothDataUpdateCoordinator[dict[str, 
             now.minute,
             now.second,
         )
+        # Capture self._api now — by the time the background task runs,
+        # the coordinator's finally block may have set self._api to None.
         self.hass.async_create_background_task(
-            self._api.send_command(
-                {"dh": now.hour, "dm": now.minute, "ds": now.second}
+            self._async_sync_time(
+                self._api,
+                {"dh": now.hour, "dm": now.minute, "ds": now.second},
             ),
             f"{DOMAIN}_sync_time_{self.address}",
         )
