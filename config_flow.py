@@ -14,13 +14,17 @@ from homeassistant.components.bluetooth import (
 )
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_ADDRESS
-from homeassistant.data_entry_flow import AbortFlow
+from homeassistant.data_entry_flow import FlowError
 from homeassistant.helpers.device_registry import DeviceInfo
 
 if TYPE_CHECKING:
     from bleak.backends.device import BLEDevice
 
-from .api import ChandlerSystemsAPI, ChandlerSystemsConnectionError
+from .api import (
+    ChandlerSystemsAPI,
+    ChandlerSystemsAuthenticationError,
+    ChandlerSystemsConnectionError,
+)
 from .const import CONF_AUTH_KEY, DOMAIN, MANUFACTURER_ID, SIGNATURE_SERVICE_UUID
 from .device_info import format_device_info
 
@@ -32,20 +36,6 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_AUTH_KEY): str,
     }
 )
-
-
-def validate_input(data: dict[str, Any]) -> dict[str, str]:
-    """Validate the user input.
-
-    Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
-    The actual BLE connection is managed by the coordinator after setup; this step
-    just ensures the address and auth key are present.
-    """
-    address: str = data[CONF_ADDRESS]
-    if not data.get(CONF_AUTH_KEY):
-        raise InvalidAuth("No authentication key provided")
-
-    return {"title": f"Chandler Systems ({address})"}
 
 
 class ChandlerSystemsConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -117,14 +107,15 @@ class ChandlerSystemsConfigFlow(ConfigFlow, domain=DOMAIN):
         """Confirm discovery."""
         assert self._discovery_info is not None
 
-        if user_input is None:
-            if self._device_info is not None:
-                name = self._device_info.get("name") or self._discovery_info.name
-                model = self._device_info.get("model") or self._discovery_info.name
-            else:
-                name = self._discovery_info.name or self._discovery_info.address
-                model = self._discovery_info.name or self._discovery_info.address
+        if self._device_info is not None:
+            name = self._device_info.get("name") or self._discovery_info.name
+            model = self._device_info.get("model") or self._discovery_info.name
+        else:
+            name = self._discovery_info.name or self._discovery_info.address
+            model = self._discovery_info.name or self._discovery_info.address
 
+        # First time showing the form
+        if user_input is None:
             return self.async_show_form(
                 step_id="bluetooth_confirm",
                 data_schema=self.add_suggested_values_to_schema(
@@ -137,18 +128,71 @@ class ChandlerSystemsConfigFlow(ConfigFlow, domain=DOMAIN):
                 },
             )
 
+        # Processing user input
         data = {**user_input, CONF_ADDRESS: self._discovery_info.address}
-        try:
-            info = validate_input(data)
-        except AbortFlow as err:
-            return self.async_abort(reason=err.reason)
+        errors: dict[str, str] = {}
 
+        try:
+            info = await self.validate_input(data)
+        except ChandlerSystemsAuthenticationError as err:
+            errors["base"] = err.translation_key or "invalid_auth"
+        except FlowError as err:
+            errors["base"] = err.translation_key or "connection_failed"
+
+        if errors:
+            return self.async_show_form(
+                step_id="bluetooth_confirm",
+                errors=errors,
+                data_schema=self.add_suggested_values_to_schema(
+                    STEP_USER_DATA_SCHEMA,
+                    data,
+                ),
+                description_placeholders={
+                    "name": name,
+                    "model": model,
+                },
+            )
+
+        # Everything is good, creating the entry
         title = (
             self._device_info.get("name") or info["title"]
             if self._device_info
             else info["title"]
         )
         return self.async_create_entry(title=title, data=data)
+
+    async def validate_input(self, data: dict[str, Any]) -> dict[str, str]:
+        """Validate the user input.
+
+        Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
+        The actual BLE connection is managed by the coordinator after setup; this step
+        just ensures the address and auth key are present.
+        """
+        address: str = data[CONF_ADDRESS]
+        if not data.get(CONF_AUTH_KEY) or data[CONF_AUTH_KEY] == "":
+            raise FlowError(translation_key="invalid_key_format")
+
+        ble_device: BLEDevice | None = None
+
+        if self._discovery_info:
+            address = self._discovery_info.address
+            ble_device = self._discovery_info.device
+        else:
+            ble_device = async_ble_device_from_address(self.hass, address)
+
+        if ble_device is None:
+            raise FlowError("No BLE device found for the provided address")
+
+        try:
+            api = ChandlerSystemsAPI(self.hass, address)
+            if await api.connect(ble_device):
+                await api.authenticate(data[CONF_AUTH_KEY])
+        except ChandlerSystemsConnectionError as err:
+            raise FlowError(f"Connection to device failed: {err}") from err
+        finally:
+            await api.disconnect()
+
+        return {"title": f"Chandler Systems ({address})"}
 
     async def async_step_create_entry(
         self, _user_input: dict[str, Any] | None = None
@@ -210,9 +254,9 @@ class ChandlerSystemsConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             try:
-                validate_input(user_input)
-            except InvalidAuth:
-                errors["base"] = "invalid_auth"
+                await self.validate_input(user_input)
+            except ChandlerSystemsAuthenticationError as err:
+                errors["base"] = err.translation_key or "invalid_auth"
             except Exception as err:  # noqa: BLE001
                 _LOGGER.error("Unexpected exception: %s", err)
                 errors["base"] = "unknown"
@@ -228,7 +272,3 @@ class ChandlerSystemsConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=STEP_USER_DATA_SCHEMA,
             errors=errors,
         )
-
-
-class InvalidAuth(AbortFlow):
-    """Error to indicate there is invalid auth."""

@@ -134,9 +134,7 @@ class ChandlerSystemsAPI:
                     await self._write_gatt(b"R", lock=False)
                 except ChandlerSystemsConnectionError:
                     # Connection already dropped; skip the reset and proceed to cleanup.
-                    _LOGGER.debug(
-                        "Device already disconnected, skipping reset command"
-                    )
+                    _LOGGER.debug("Device already disconnected, skipping reset command")
                 self._connected = False
                 # Short delay to allow it to process the disconnect
                 await asyncio.sleep(0.1)
@@ -191,7 +189,7 @@ class ChandlerSystemsAPI:
                     token_bytes = bytes.fromhex(auth_key.replace("-", "").lower())
                 except ValueError as err:
                     raise ChandlerSystemsAuthenticationError(
-                        "Invalid auth key format"
+                        translation_key="invalid_key_format"
                     ) from err
 
                 if (
@@ -199,7 +197,7 @@ class ChandlerSystemsAPI:
                     and initial_data.get(KEY_FIRMWARE_VERSION, 0) <= 618
                 ):
                     raise ChandlerSystemsAuthenticationError(
-                        "Please regenerate your API key until you no longer see '2D' in it (known bug in firmware)"
+                        translation_key="bad_auth_key"
                     )
 
                 if len(token_bytes) != 16:
@@ -236,13 +234,9 @@ class ChandlerSystemsAPI:
                     return False
                 else:
                     return True
-
-            except ChandlerSystemsConnectionError as err:
-                _LOGGER.error("Connection error during authentication: %s", err)
-                return False
             except BleakError as err:
                 _LOGGER.error("Bluetooth error during authentication: %s", err)
-                return False
+                raise
 
     async def send_command(self, json_data: dict[str, Any]) -> dict[str, Any] | None:
         """Send a JSON command and wait for a JSON response."""
@@ -263,13 +257,13 @@ class ChandlerSystemsAPI:
             _LOGGER.warning("Timeout waiting for response to command %s", json_data)
             return None
 
-    def register_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
+    def register_callback(self, fn: Callable[[dict[str, Any]], None]) -> None:
         """Register a callback for notifications."""
-        self._callbacks.append(callback)
+        self._callbacks.append(fn)
 
-    def unregister_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
+    def unregister_callback(self, fn: Callable[[dict[str, Any]], None]) -> None:
         """Unregister a previously registered callback."""
-        self._callbacks.remove(callback)
+        self._callbacks.remove(fn)
 
     def _drain_response_queue(self) -> None:
         """Discard any stale responses sitting in the queue."""
@@ -466,8 +460,8 @@ class ChandlerSystemsAPI:
 
         # Notify callbacks only after ACK has been sent
         if json_data is not None:
-            for callback in self._callbacks:
-                callback(json_data)
+            for fn in self._callbacks:
+                fn(json_data)
 
     async def _wait_for_ack(self, timeout: float) -> bool | None:
         """Wait for ACK or NAK from the device.
@@ -533,7 +527,7 @@ class ChandlerSystemsAPI:
         if not self._connected:
             # Already marked disconnected (e.g. our own disconnect() ran first).
             return
-        _LOGGER.debug("BLE connection to %s dropped", self.address)
+        _LOGGER.info("BLE connection to %s dropped", self.address)
         self._connected = False
         self.disconnect_event.set()
 

@@ -5,8 +5,10 @@
       "not_supported": "Device is not supported"
     },
     "error": {
+      "bad_auth_key": "Please regenerate your API key until you no longer see '2D' in it (known bug in firmware)",
       "cannot_connect": "Failed to connect to the Chandler Systems device",
       "invalid_auth": "Invalid authentication key",
+      "invalid_key_format": "API key must be a UUID string (32 hexadecimal characters, optionally with dashes)",
       "unknown": "Unexpected error occurred"
     },
     "progress": {

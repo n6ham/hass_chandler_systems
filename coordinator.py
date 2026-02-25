@@ -20,6 +20,7 @@ from homeassistant.components.bluetooth.active_update_coordinator import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CoreState, HomeAssistant, callback
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.issue_registry import IssueSeverity, async_create_issue
 from homeassistant.helpers.update_coordinator import UpdateFailed
@@ -125,7 +126,7 @@ class ChandlerSystemsCoordinator(ActiveBluetoothDataUpdateCoordinator[dict[str, 
         try:
             await api.authenticate(self.auth_key)
         except ChandlerSystemsAuthenticationError as err:
-            raise UpdateFailed(f"Incorrect API key format: {err}") from err
+            raise ConfigEntryAuthFailed(f"Incorrect API key format: {err}") from err
         except ChandlerSystemsConnectionError as err:
             async_create_issue(
                 self.hass,
@@ -160,7 +161,7 @@ class ChandlerSystemsCoordinator(ActiveBluetoothDataUpdateCoordinator[dict[str, 
                         task.cancel()
 
                     if disconnect_task in done:
-                        _LOGGER.debug(
+                        _LOGGER.info(
                             "BLE connection to %s dropped, exiting wait loop",
                             self.address,
                         )
@@ -250,6 +251,12 @@ class ChandlerSystemsCoordinator(ActiveBluetoothDataUpdateCoordinator[dict[str, 
         change: BluetoothChange,
     ) -> None:
         """Handle a Bluetooth advertisement event."""
+        if (
+            not self.ble_device
+            or service_info.device.address != self.ble_device.address
+        ):
+            _LOGGER.info("Chandler Systems device %s discovered", self.address)
+
         self.ble_device = service_info.device
         super()._async_handle_bluetooth_event(service_info, change)
 

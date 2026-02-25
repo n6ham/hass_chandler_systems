@@ -1,7 +1,6 @@
 {
   "domain": "chandler_systems",
   "name": "Chandler Systems",
-  "version": "0.1.0",
   "bluetooth": [
     {
       "connectable": true,
@@ -15,6 +14,7 @@
   "codeowners": ["@toekneestuck"],
   "config_flow": true,
   "dependencies": ["bluetooth", "bluetooth_adapters"],
-  "iot_class": "local_polling",
-  "homeassistant": ">=2026.2.3"
+  "documentation": "https://www.home-assistant.io/integrations/chandler_systems",
+  "iot_class": "local_push",
+  "quality_scale": "bronze"
 }
